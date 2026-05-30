@@ -16,20 +16,38 @@ const getIconComponent = (iconName: string) => {
 };
 
 export default async function Home() {
-  // Run seeder to import tazakhabare articles if missing
-  await seedDatabaseIfNeeded();
+  let serializedLatest: any[] = [];
+  let serializedFeatured: any[] = [];
+  let serializedTrending: any[] = [];
+  let serializedCategoriesWithArticles: any[] = [];
+  let dbError = false;
 
-  // Fetch data using the Article Service Layer
-  const serializedLatest = await articleService.getLatestArticles(5);
-  const serializedFeatured = await articleService.getFeaturedArticles(5);
-  const serializedTrending = await articleService.getTrendingArticles(5);
-  const serializedCategoriesWithArticles = await articleService.getCategoriesWithArticles(4);
+  try {
+    // Run seeder to import tazakhabare articles if missing
+    await seedDatabaseIfNeeded();
+
+    // Fetch data using the Article Service Layer
+    serializedLatest = await articleService.getLatestArticles(5);
+    serializedFeatured = await articleService.getFeaturedArticles(5);
+    serializedTrending = await articleService.getTrendingArticles(5);
+    serializedCategoriesWithArticles = await articleService.getCategoriesWithArticles(4);
+  } catch (error) {
+    console.error("Database connection failed during rendering:", error);
+    dbError = true;
+  }
 
   const mainArticle = serializedFeatured[0];
   const sideArticles = serializedFeatured.slice(1, 5);
 
   return (
     <div className="space-y-8">
+      {dbError && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6">
+          <div className="bg-red-500/10 text-red-500 border border-red-500/20 text-xs md:text-sm font-semibold p-4 rounded-2xl text-center">
+            डेटाबेस से जुड़ने में समस्या हुई। कृपया सुनिश्चित करें कि आपने MongoDB Atlas में IP address `0.0.0.0/0` को whitelist किया है।
+          </div>
+        </div>
+      )}
       {/* 1. Breaking News Ticker */}
       <BreakingNews articles={serializedLatest} />
 
