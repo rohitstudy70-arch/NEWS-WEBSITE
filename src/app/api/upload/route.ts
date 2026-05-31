@@ -20,23 +20,34 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const uploadDir = join(process.cwd(), 'public', 'uploads');
-    
+    // 1. Try writing locally first (preferred for local development)
     try {
+      const uploadDir = join(process.cwd(), 'public', 'uploads');
       await mkdir(uploadDir, { recursive: true });
-    } catch {
-      // Directory already exists or permission issue handled by throw below
+
+      const safeName = file.name ? file.name.replace(/[^a-zA-Z0-9.]/g, '_') : 'image.jpg';
+      const filename = `${Date.now()}-${safeName}`;
+      const filePath = join(uploadDir, filename);
+
+      await writeFile(filePath, buffer);
+
+      return NextResponse.json({
+        success: true,
+        url: `/uploads/${filename}`,
+      });
+    } catch (fsError: any) {
+      console.warn('Local filesystem write failed (likely read-only on Vercel). Falling back to Base64 data URL:', fsError.message);
+
+      // 2. Fallback: Base64 encoding (guarantees success on serverless hosts like Vercel)
+      const mimeType = file.type || 'image/jpeg';
+      const base64String = buffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64String}`;
+
+      return NextResponse.json({
+        success: true,
+        url: dataUrl,
+      });
     }
-
-    const filename = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
-    const filePath = join(uploadDir, filename);
-
-    await writeFile(filePath, buffer);
-
-    return NextResponse.json({
-      success: true,
-      url: `/uploads/${filename}`,
-    });
   } catch (error: any) {
     console.error('File upload error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
