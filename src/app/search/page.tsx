@@ -21,13 +21,12 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const page = parseInt(resolvedSearchParams.page || '1', 10);
   const limit = 6;
 
-  const { articles, totalArticles, totalPages } = await articleService.searchArticles(
-    query,
-    page,
-    limit
-  );
+  const [searchResults, serializedTrending] = await Promise.all([
+    articleService.searchArticles(query, page, limit),
+    articleService.getTrendingArticles(5)
+  ]);
 
-  const serializedTrending = await articleService.getTrendingArticles(5);
+  const { articles, totalArticles, totalPages } = searchResults;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

@@ -26,13 +26,16 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const page = parseInt(resolvedSearchParams.page || '1', 10);
   const limit = 6;
 
-  const result = await articleService.getArticlesByCategory(slug, page, limit);
+  const [result, serializedTrending] = await Promise.all([
+    articleService.getArticlesByCategory(slug, page, limit),
+    articleService.getTrendingArticles(5)
+  ]);
+
   if (!result) {
     notFound();
   }
 
   const { category, articles, totalPages } = result;
-  const serializedTrending = await articleService.getTrendingArticles(5);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">

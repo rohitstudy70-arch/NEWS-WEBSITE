@@ -26,11 +26,18 @@ export default async function Home() {
     // Run seeder to import tazakhabare articles if missing
     await seedDatabaseIfNeeded();
 
-    // Fetch data using the Article Service Layer
-    serializedLatest = await articleService.getLatestArticles(5);
-    serializedFeatured = await articleService.getFeaturedArticles(5);
-    serializedTrending = await articleService.getTrendingArticles(5);
-    serializedCategoriesWithArticles = await articleService.getCategoriesWithArticles(4);
+    // Fetch data using the Article Service Layer in parallel
+    const [latest, featured, trending, categoriesWithArticles] = await Promise.all([
+      articleService.getLatestArticles(5),
+      articleService.getFeaturedArticles(5),
+      articleService.getTrendingArticles(5),
+      articleService.getCategoriesWithArticles(4)
+    ]);
+    
+    serializedLatest = latest;
+    serializedFeatured = featured;
+    serializedTrending = trending;
+    serializedCategoriesWithArticles = categoriesWithArticles;
   } catch (error) {
     console.error("Database connection failed during rendering:", error);
     dbError = true;

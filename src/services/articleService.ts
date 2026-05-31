@@ -66,9 +66,8 @@ export const articleService = {
   async getCategoriesWithArticles(limitPerCategory = 4) {
     await dbConnect();
     const categories = await Category.find({});
-    const categoriesWithArticles = [];
 
-    for (const cat of categories) {
+    const articlePromises = categories.map(async (cat) => {
       const articles = await Article.find({
         isDraft: false,
         category: cat._id,
@@ -78,13 +77,15 @@ export const articleService = {
         .sort({ publishedAt: -1 })
         .limit(limitPerCategory);
 
-      if (articles.length > 0) {
-        categoriesWithArticles.push({
-          category: cat,
-          articles,
-        });
-      }
-    }
+      return {
+        category: cat,
+        articles,
+      };
+    });
+
+    const results = await Promise.all(articlePromises);
+    const categoriesWithArticles = results.filter((r) => r.articles.length > 0);
+
     return serialize(categoriesWithArticles);
   },
 
@@ -235,28 +236,36 @@ export const articleService = {
   async getAdminDashboardStats() {
     await dbConnect();
     
-    const totalArticles = await Article.countDocuments({});
-    const draftArticles = await Article.countDocuments({ isDraft: true });
-    const publishedArticles = totalArticles - draftArticles;
-
-    const viewsAggregation = await Article.aggregate([
-      { $group: { _id: null, totalViews: { $sum: '$views' } } },
+    const [
+      totalArticles,
+      draftArticles,
+      viewsAggregation,
+      totalSubscribers,
+      totalComments,
+      pendingComments,
+      recentArticles,
+      recentComments
+    ] = await Promise.all([
+      Article.countDocuments({}),
+      Article.countDocuments({ isDraft: true }),
+      Article.aggregate([
+        { $group: { _id: null, totalViews: { $sum: '$views' } } },
+      ]),
+      Subscriber.countDocuments({}),
+      Comment.countDocuments({}),
+      Comment.countDocuments({ approved: false }),
+      Article.find({})
+        .populate('category', 'name')
+        .sort({ createdAt: -1 })
+        .limit(5),
+      Comment.find({})
+        .populate('articleId', 'title slug')
+        .sort({ createdAt: -1 })
+        .limit(5)
     ]);
+
+    const publishedArticles = totalArticles - draftArticles;
     const totalViews = viewsAggregation[0]?.totalViews || 0;
-
-    const totalSubscribers = await Subscriber.countDocuments({});
-    const totalComments = await Comment.countDocuments({});
-    const pendingComments = await Comment.countDocuments({ approved: false });
-
-    const recentArticles = await Article.find({})
-      .populate('category', 'name')
-      .sort({ createdAt: -1 })
-      .limit(5);
-
-    const recentComments = await Comment.find({})
-      .populate('articleId', 'title slug')
-      .sort({ createdAt: -1 })
-      .limit(5);
 
     return serialize({
       totalArticles,

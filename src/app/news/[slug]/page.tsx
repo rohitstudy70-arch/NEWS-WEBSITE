@@ -55,15 +55,15 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
     notFound();
   }
 
-  // Related articles (same category, exclude current)
-  const relatedArticles = await articleService.getRelatedArticles(
-    article.category?.slug || '',
-    article.slug,
-    3
-  );
-
-  // Trending articles for sidebar
-  const trendingArticles = await articleService.getTrendingArticles(5);
+  // Run the remaining data fetches in parallel (waterfall reduction)
+  const [relatedArticles, trendingArticles] = await Promise.all([
+    articleService.getRelatedArticles(
+      article.category?.slug || '',
+      article.slug,
+      3
+    ),
+    articleService.getTrendingArticles(5)
+  ]);
 
   const articleUrl = `http://localhost:3000/news/${article.slug}`;
 
