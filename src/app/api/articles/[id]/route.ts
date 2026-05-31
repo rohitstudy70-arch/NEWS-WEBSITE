@@ -3,6 +3,7 @@ import { getSession } from '@/lib/auth';
 import { articleService } from '@/services/articleService';
 import dbConnect from '@/lib/db';
 import Article from '@/models/Article'; // Needed for direct mongoose update methods in API responses
+import { revalidatePath } from 'next/cache';
 
 function calculateReadingTime(text: string): number {
   const words = text.replace(/<[^>]*>/g, '').trim().split(/\s+/).length;
@@ -111,6 +112,23 @@ export async function PUT(
     const updatedArticle = await Article.findByIdAndUpdate(id, updatedData, { new: true })
       .populate('category', 'name slug');
 
+    // Clear Next.js cache so the updated article changes are visible instantly
+    try {
+      revalidatePath('/');
+      revalidatePath('/search');
+      if (updatedArticle.category?.slug) {
+        revalidatePath(`/category/${updatedArticle.category.slug}`);
+      }
+      revalidatePath(`/news/${updatedArticle.slug}`);
+      // Also revalidate the old slug if it was changed
+      if (article.slug !== updatedArticle.slug) {
+        revalidatePath(`/news/${article.slug}`);
+      }
+      console.log('Revalidation triggered for article update.');
+    } catch (e) {
+      console.error('Revalidation error during article PUT:', e);
+    }
+
     return NextResponse.json(JSON.parse(JSON.stringify(updatedArticle)));
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -128,9 +146,35 @@ export async function DELETE(
     }
 
     const { id } = await params;
+
+    // Fetch slug and category before deleting for cache clearing
+    await dbConnect();
+    const article = await Article.findById(id).populate('category', 'slug');
+    let articleSlug = '';
+    let categorySlug = '';
+    if (article) {
+      articleSlug = article.slug;
+      categorySlug = article.category?.slug;
+    }
+
     const success = await articleService.deleteArticle(id);
     if (!success) {
       return NextResponse.json({ error: 'Article not found' }, { status: 404 });
+    }
+
+    // Clear Next.js cache so deletion is visible instantly
+    try {
+      revalidatePath('/');
+      revalidatePath('/search');
+      if (categorySlug) {
+        revalidatePath(`/category/${categorySlug}`);
+      }
+      if (articleSlug) {
+        revalidatePath(`/news/${articleSlug}`);
+      }
+      console.log('Revalidation triggered for article deletion.');
+    } catch (e) {
+      console.error('Revalidation error during article DELETE:', e);
     }
 
     return NextResponse.json({ success: true, message: 'Article deleted successfully' });

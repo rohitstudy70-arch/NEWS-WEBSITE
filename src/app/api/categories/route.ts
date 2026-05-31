@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { categoryService } from '@/services/categoryService';
+import { revalidatePath } from 'next/cache';
 
 export async function GET() {
   try {
@@ -29,6 +30,15 @@ export async function POST(req: Request) {
     }
 
     const newCategory = await categoryService.createCategory({ name, slug, description, icon });
+    
+    // Clear Next.js cache so the new category shows in the Navbar
+    try {
+      revalidatePath('/', 'layout'); // Revalidates layout containing Navbar
+      revalidatePath(`/category/${slug}`);
+    } catch (e) {
+      console.error('Revalidation error during Category POST:', e);
+    }
+
     return NextResponse.json(newCategory, { status: 201 });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });

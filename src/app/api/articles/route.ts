@@ -4,6 +4,8 @@ import { articleService } from '@/services/articleService';
 import { categoryService } from '@/services/categoryService';
 import dbConnect from '@/lib/db';
 import Article from '@/models/Article'; // Needed for direct query builders in routes
+import Category from '@/models/Category';
+import { revalidatePath } from 'next/cache';
 
 function calculateReadingTime(text: string): number {
   const words = text.replace(/<[^>]*>/g, '').trim().split(/\s+/).length;
@@ -149,6 +151,30 @@ export async function POST(req: Request) {
       faqs: faqs || [],
       views: 0,
     });
+
+    // Fetch category slug to revalidate the specific category page
+    let catSlug = '';
+    try {
+      const categoryDoc = await Category.findById(category);
+      if (categoryDoc) {
+        catSlug = categoryDoc.slug;
+      }
+    } catch (e) {
+      console.error('Failed to get category for revalidation:', e);
+    }
+
+    // Clear Next.js cache so the new article is visible instantly
+    try {
+      revalidatePath('/');
+      revalidatePath('/search');
+      if (catSlug) {
+        revalidatePath(`/category/${catSlug}`);
+      }
+      revalidatePath(`/news/${articleSlug}`);
+      console.log('Revalidation triggered for new article creation.');
+    } catch (e) {
+      console.error('Revalidation error:', e);
+    }
 
     return NextResponse.json(newArticle, { status: 201 });
   } catch (error: any) {
